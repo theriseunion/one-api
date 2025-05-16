@@ -158,6 +158,16 @@ func Register(c *gin.Context) {
 			return
 		}
 	}
+
+	accessToken := random.GetUUID()
+	if model.DB.Where("access_token = ?", accessToken).First(user).RowsAffected != 0 {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "请重试，系统生成的 UUID 竟然重复了！",
+		})
+		return
+	}
+
 	affCode := user.AffCode // this code is the inviter's code, not the user's own code
 	inviterId, _ := model.GetUserIdByAffCode(affCode)
 	cleanUser := model.User{
@@ -165,6 +175,7 @@ func Register(c *gin.Context) {
 		Password:    user.Password,
 		DisplayName: user.Username,
 		InviterId:   inviterId,
+		AccessToken: accessToken,
 	}
 	if config.EmailVerificationEnabled {
 		cleanUser.Email = user.Email
@@ -177,9 +188,14 @@ func Register(c *gin.Context) {
 		return
 	}
 
+	user.Id = cleanUser.Id
+	user.AccessToken = cleanUser.AccessToken
+	user.Password = ""
+
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
+		"data":    user,
 	})
 	return
 }
